@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LGL Menu Patcher</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root{--bg:#080b10;--surface:#0d1117;--surface2:#111922;--border:#1a2535;--accent:#00e5ff;--accent2:#ff3a6e;--text:#c8d6e8;--dim:#4a5568;--green:#00e676;--yellow:#ffd600;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+.wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:32px 20px 80px;}
+header{display:flex;align-items:center;gap:16px;margin-bottom:36px;border-bottom:1px solid var(--border);padding-bottom:22px;}
+.logo{width:46px;height:46px;background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 0 20px rgba(0,229,255,.3);}
+header h1{font-size:20px;font-weight:800;letter-spacing:2px;color:#fff;text-transform:uppercase;}
+header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace;margin-top:2px;}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:18px;overflow:hidden;transition:border-color .2s;}
+.step.active{border-color:var(--accent);}
+.step.done{border-color:var(--green);}
+.step.error{border-color:var(--accent2);}
+.step-head{display:flex;align-items:center;gap:14px;padding:15px 20px;}
+.step-num{width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--dim);flex-shrink:0;transition:all .2s;}
+.step.active .step-num{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,.08);}
+.step.done .step-num{border-color:var(--green);color:var(--bg);background:var(--green);}
+.step.error .step-num{border-color:var(--accent2);color:var(--accent2);}
+.step-title{font-size:14px;font-weight:600;color:#fff;}
+.step-sub{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace;margin-top:2px;}
+.step-body{padding:0 20px 20px;display:none;}
+.step.active .step-body,.step.done .step-body,.step.error .step-body{display:block;}
+.droprow{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.dropzone{border:2px dashed var(--border);border-radius:8px;padding:26px 16px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.dropzone:hover,.dropzone.drag{border-color:var(--accent);background:rgba(0,229,255,.04);}
+.dropzone.loaded{border-style:solid;border-color:var(--green);background:rgba(0,230,118,.04);}
+.dz-icon{font-size:26px;margin-bottom:8px;}
+.dz-label{font-size:12px;color:var(--dim);}
+.dz-label span{color:var(--accent);}
+.dropzone.loaded .dz-label{color:var(--green);}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:7px;font-family:'Share Tech Mono',monospace;font-size:12px;border:none;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:1px;}
+.btn-primary{background:var(--accent);color:var(--bg);font-weight:700;}
+.btn-primary:hover{box-shadow:0 0 16px rgba(0,229,255,.4);transform:translateY(-1px);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none;}
+.btn-row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+.log{background:#050709;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:'Share Tech Mono',monospace;font-size:11px;max-height:200px;overflow-y:auto;margin-top:12px;line-height:1.8;}
+.ll{display:block;}.ll.ok{color:var(--green);}.ll.err{color:var(--accent2);}.ll.warn{color:var(--yellow);}.ll.info{color:var(--accent);}.ll.dim{color:var(--dim);}
+.checks{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:10px;}
+.checks li{display:flex;align-items:flex-start;gap:10px;font-size:12px;padding:8px 10px;background:var(--surface2);border-radius:6px;border:1px solid transparent;}
+.checks li.ok{border-color:rgba(0,230,118,.2);}.checks li.warn{border-color:rgba(255,214,0,.2);}.checks li.err{border-color:rgba(255,58,110,.2);}
+.ci{flex-shrink:0;font-size:13px;}.ct{flex:1;}.ct b{display:block;color:#fff;margin-bottom:1px;}.ct span{color:var(--dim);font-size:10px;font-family:'Share Tech Mono',monospace;}
+.progress-bar{height:3px;background:var(--border);border-radius:2px;margin:14px 0;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,#7c3aed,var(--accent));border-radius:2px;transition:width .3s ease;width:0%;}
+.sep{height:1px;background:var(--border);margin:14px 0;}
+.download-box{background:linear-gradient(135deg,rgba(0,229,255,.06),rgba(124,58,237,.06));border:1px solid var(--accent);border-radius:10px;padding:20px;text-align:center;margin-top:12px;}
+.download-box h3{color:var(--accent);font-size:15px;margin-bottom:6px;}
+.download-box p{color:var(--dim);font-size:11px;font-family:'Share Tech Mono',monospace;margin-bottom:14px;}
+.note{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace;line-height:1.9;margin-top:12px;}
+.note .hl{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo">⚙</div>
+  <div>
+    <h1>LGL Menu Patcher</h1>
+    <p>binary AXML patcher + DEX + SO injector // runs in browser</p>
+  </div>
+</header>
+
+<!-- STEP 1 -->
+<div class="step active" id="s1">
+  <div class="step-head">
+    <div class="step-num">1</div>
+    <div><div class="step-title">Load APKs</div><div class="step-sub">game APK + your built LGL Menu APK</div></div>
+  </div>
+  <div class="step-body">
+    <div class="droprow">
+      <div class="dropzone" id="dz-g" onclick="document.getElementById('fi-g').click()">
+        <input type="file" id="fi-g" accept=".apk" style="display:none"/>
+        <div class="dz-icon">🎮</div>
+        <div class="dz-label" id="lb-g"><span>Click</span> or drop<br/>Game APK</div>
+      </div>
+      <div class="dropzone" id="dz-l" onclick="document.getElementById('fi-l').click()">
+        <input type="file" id="fi-l" accept=".apk" style="display:none"/>
+        <div class="dz-icon">⚡</div>
+        <div class="dz-label" id="lb-l"><span>Click</span> or drop<br/>LGL Menu APK</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-analyze" disabled onclick="analyze()">⟶ Analyze</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="step" id="s2">
+  <div class="step-head">
+    <div class="step-num">2</div>
+    <div><div class="step-title">Analysis</div><div class="step-sub">manifest, dex, architectures</div></div>
+  </div>
+  <div class="step-body">
+    <ul class="checks" id="chk"></ul>
+    <div id="alog" class="log" style="display:none"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-patch" disabled onclick="runPatch()">⟶ Apply Patches</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="step" id="s3">
+  <div class="step-head">
+    <div class="step-num">3</div>
+    <div><div class="step-title">Patching</div><div class="step-sub">AXML · DEX · SO · strip signature</div></div>
+  </div>
+  <div class="step-body">
+    <div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+    <div id="plog" class="log"></div>
+  </div>
+</div>
+
+<!-- STEP 4 -->
+<div class="step" id="s4">
+  <div class="step-head">
+    <div class="step-num">4</div>
+    <div><div class="step-title">Download</div><div class="step-sub">sign with MT Manager then install</div></div>
+  </div>
+  <div class="step-body">
+    <div class="download-box">
+      <h3>✓ Patched APK Ready</h3>
+      <p id="dl-name">patched.apk</p>
+      <button class="btn btn-primary" onclick="dlAPK()">⬇ Download</button>
+    </div>
+    <div class="sep"></div>
+    <div class="note">
+      // NEXT STEPS:<br/>
+      // 1. Open in MT Manager → Auto Sign<br/>
+      // 2. Install on device<br/>
+      // 3. Smali inject in game onCreate (you handle this):<br/>
+      // &nbsp;&nbsp;<span class="hl">invoke-static {p0}, Lcom/lgl/menu/Main;->Start(Landroid/content/Context;)V</span><br/>
+      // 4. Open game → grant overlay permission → ☰ appears
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ── state ──────────────────────────────────────────────────
+var gBytes=null, lBytes=null, gZip=null, lZip=null;
+var info={};
+var outBytes=null;
+
+// ── file loading ───────────────────────────────────────────
+function setupDrop(dzId, fiId, tag){
+  var dz=document.getElementById(dzId);
+  var fi=document.getElementById(fiId);
+  fi.onchange=function(){ if(fi.files[0]) loadFile(fi.files[0],tag); };
+  dz.ondragover=function(e){ e.preventDefault(); dz.classList.add('drag'); };
+  dz.ondragleave=function(){ dz.classList.remove('drag'); };
+  dz.ondrop=function(e){ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0],tag); };
+}
+setupDrop('dz-g','fi-g','g');
+setupDrop('dz-l','fi-l','l');
+
+function loadFile(f,tag){
+  var r=new FileReader();
+  r.onload=function(e){
+    var b=new Uint8Array(e.target.result);
+    if(tag==='g'){ gBytes=b; markDz('dz-g','lb-g',f); }
+    else          { lBytes=b; markDz('dz-l','lb-l',f); }
+    if(gBytes&&lBytes) document.getElementById('btn-analyze').disabled=false;
+  };
+  r.readAsArrayBuffer(f);
+}
+function markDz(dzId,lbId,f){
+  document.getElementById(dzId).classList.add('loaded');
+  document.getElementById(lbId).innerHTML='<b>'+f.name+'</b><br/>'+sz(f.size);
+}
+function sz(n){ return n>1048576?(n/1048576).toFixed(1)+' MB':(n/1024).toFixed(0)+' KB'; }
+
+// ── step helper ────────────────────────────────────────────
+function setStep(id,state){
+  var el=document.getElementById(id);
+  el.classList.remove('active','done','error');
+  if(state) el.classList.add(state);
+  if(state==='done'){ el.querySelector('.step-num').textContent='✓'; }
+}
+function addCheck(cls,title,sub){
+  var li=document.createElement('li');
+  li.className=cls;
+  var icon=cls==='ok'?'✓':cls==='warn'?'⚠':'✗';
+  li.innerHTML='<span class="ci">'+icon+'</span><div class="ct"><b>'+title+'</b><span>'+sub+'</span></div>';
+  document.getElementById('chk').appendChild(li);
+}
+function alog(msg,cls){ logTo('alog',msg,cls||'dim'); }
+function plog(msg,cls){ logTo('plog',msg,cls||'dim'); }
+function logTo(id,msg,cls){
+  var el=document.getElementById(id);
+  el.style.display='block';
+  var s=document.createElement('span');
+  s.className='ll '+(cls||'dim');
+  s.textContent='> '+msg;
+  el.appendChild(s);
+  el.scrollTop=99999;
+}
+function setProgress(n,total){ document.getElementById('prog').style.width=Math.round(n/total*100)+'%'; }
+
+// ── AXML helpers ───────────────────────────────────────────
+// Read a little-endian uint16/uint32 from Uint8Array
+function r16(b,o){ return b[o]|(b[o+1]<<8); }
+function r32(b,o){ return (b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0; }
+function r32s(b,o){ return b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24); }
+function w32(b,o,v){ b[o]=v&0xFF; b[o+1]=(v>>8)&0xFF; b[o+2]=(v>>16)&0xFF; b[o+3]=(v>>24)&0xFF; }
+function w16(b,o,v){ b[o]=v&0xFF; b[o+1]=(v>>8)&0xFF; }
+
+// Read UTF-16LE string from string pool data at offset
+function readStr(strData, off){
+  var len=r16(strData,off);
+  var s='';
+  for(var i=0;i<len;i++) s+=String.fromCharCode(r16(strData,off+2+i*2));
+  return s;
+}
+
+// Encode UTF-16LE string (uint16 len + chars + null)
+function encStr(s){
+  var buf=new Uint8Array(2+s.length*2+2);
+  w16(buf,0,s.length);
+  for(var i=0;i<s.length;i++) w16(buf,2+i*2,s.charCodeAt(i));
+  return buf;
+}
+
+function concat(parts){
+  var total=0;
+  for(var i=0;i<parts.length;i++) total+=parts[i].length;
+  var out=new Uint8Array(total), off=0;
+  for(var i=0;i<parts.length;i++){ out.set(parts[i],off); off+=parts[i].length; }
+  return out;
+}
+
+function align4(n){ return Math.ceil(n/4)*4; }
+
+// ── AXML parser (extracts package + mainActivity only) ─────
+function parseAXML(b){
+  var res={pkg:'',mainActivity:''};
+  if(r32(b,0)!==0x00080003) return res;          // not AXML magic
+  // String pool at offset 8
+  var spOff=8;
+  if((r32(b,spOff)&0xFFFF)!==0x0001) return res; // not string pool chunk
+  var spSize    = r32(b,spOff+4);
+  var strCount  = r32(b,spOff+8);
+  var strStart  = r32(b,spOff+20); // relative to spOff
+  // string offsets table starts at spOff+28
+  var strData   = b.subarray(spOff+strStart);
+
+  function getStr(idx){
+    if(idx<0||idx>=strCount) return '';
+    var off=r32(b,spOff+28+idx*4);
+    return readStr(strData,off);
+  }
+
+  // Walk element chunks after string pool
+  var pos=spOff+spSize;
+  while(pos<b.length-8){
+    var ct=r32(b,pos);
+    var cs=r32(b,pos+4);
+    if(cs<8||pos+cs>b.length) break;
+    if(ct===0x00100102){ // START_ELEMENT
+      var attrCount=r16(b,pos+28);
+      var tagName=getStr(r32s(b,pos+20));
+      var attrs={};
+      for(var i=0;i<attrCount;i++){
+        var ao=pos+36+i*20;
+        var key=getStr(r32s(b,ao+4));
+        var valIdx=r32s(b,ao+8);
+        var type=r32(b,ao+12);
+        var data=r32s(b,ao+16);
+        var val=(type===0x03000008)?getStr(data):(valIdx>=0?getStr(valIdx):'');
+        attrs[key]=val;
+      }
+      if(tagName==='manifest'&&attrs['package']) res.pkg=attrs['package'];
+      if((tagName==='activity'||tagName==='activity-alias')&&attrs['name']&&!res.mainActivity)
+        res.mainActivity=attrs['name'];
+    }
+    pos+=cs;
+  }
+  return res;
+}
+
+// ── AXML patcher ──────────────────────────────────────────
+// Rebuilds the string pool with new strings added,
+// then injects permission + service elements before </application>
+// No offset arithmetic — purely structural.
+function patchAXML(orig){
+  if(r32(orig,0)!==0x00080003) throw new Error('Not a valid binary AXML file');
+
+  // ── 1. Read existing string pool ──
+  var spOff    = 8;
+  var spSize   = r32(orig,spOff+4);
+  var strCount = r32(orig,spOff+8);
+  var styleCount=r32(orig,spOff+12);
+  var flags    = r32(orig,spOff+16);
+  var strStart = r32(orig,spOff+20); // relative to spOff
+  var strData  = orig.subarray(spOff+strStart);
+
+  // Read all existing strings
+  var strings=[];
+  for(var i=0;i<strCount;i++){
+    var off=r32(orig,spOff+28+i*4);
+    strings.push(readStr(strData,off));
+  }
+
+  // ── 2. Ensure required strings exist (add if missing) ──
+  var needed=[
+    'android.permission.SYSTEM_ALERT_WINDOW',
+    'android.permission.FOREGROUND_SERVICE',
+    'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+    'uses-permission',
+    'com.lgl.menu.Launcher',
+    'com.lgl.menu.OverlayService',
+    'service',
+    'http://schemas.android.com/apk/res/android',
+    'name','enabled','exported','stopWithTask','foregroundServiceType',
+    'dataSync','true','false'
+  ];
+  for(var i=0;i<needed.length;i++){
+    if(strings.indexOf(needed[i])===-1) strings.push(needed[i]);
+  }
+
+  function si(s){
+    var idx=strings.indexOf(s);
+    return idx>=0?idx:0;
+  }
+
+  // ── 3. Rebuild string pool ──
+  var encodedStrs=strings.map(encStr);
+  var strOffsets=[], strOff=0;
+  for(var i=0;i<encodedStrs.length;i++){
+    strOffsets.push(strOff);
+    strOff+=encodedStrs[i].length;
+  }
+  var strDataNew=concat(encodedStrs);
+  var offArrBytes=strings.length*4;
+  var spHeaderSize=28; // 8 (chunk header) + 5 uint32s
+  var newStrStart=spHeaderSize+offArrBytes; // relative to spOff
+  var newSpRaw=spHeaderSize+offArrBytes+strDataNew.length;
+  var newSpSize=align4(newSpRaw);
+
+  var newSP=new Uint8Array(newSpSize);
+  w32(newSP,0,0x00080001);      // chunk type STRING_POOL
+  w32(newSP,4,newSpSize);
+  w32(newSP,8,strings.length);
+  w32(newSP,12,styleCount);
+  w32(newSP,16,flags);
+  w32(newSP,20,newStrStart);
+  w32(newSP,24,0);              // no styles
+  for(var i=0;i<strings.length;i++) w32(newSP,28+i*4,strOffsets[i]);
+  newSP.set(strDataNew,newStrStart);
+
+  // ── 4. Build permission element (START + END) ──
+  var ANS=si('http://schemas.android.com/apk/res/android');
+  function makePermission(perm){
+    // START_ELEMENT with 1 attr (name)
+    var startSize=36+1*20; // header(24) + attrHeader(12) + 1 attr(20)
+    var s=new Uint8Array(startSize);
+    w32(s,0,0x00100102);       // START_ELEMENT
+    w32(s,4,startSize);
+    w32(s,8,0);                // lineNumber
+    w32(s,12,0xFFFFFFFF);      // comment = -1
+    w32(s,16,0xFFFFFFFF);      // ns = none
+    w32(s,20,si('uses-permission')); // element name
+    w16(s,24,0x14);            // attrStart=20
+    w16(s,26,0x14);            // attrSize=20
+    w16(s,28,1);               // attrCount=1
+    w16(s,30,0); w16(s,32,0); w16(s,34,0); // id/class/style index
+    // attr: android:name = perm string
+    var a=36;
+    w32(s,a,ANS);              // attr ns = android ns
+    w32(s,a+4,si('name'));     // attr name
+    w32(s,a+8,si(perm));       // rawValue string index
+    w32(s,a+12,0x03000008);    // type = TYPE_STRING
+    w32(s,a+16,si(perm));      // data = string index
+    // END_ELEMENT
+    var e=new Uint8Array(24);
+    w32(e,0,0x00100101);
+    w32(e,4,24);
+    w32(e,8,0); w32(e,12,0xFFFFFFFF);
+    w32(e,16,0xFFFFFFFF);
+    w32(e,20,si('uses-permission'));
+    return concat([s,e]);
+  }
+
+  // ── 5. Build service element ──
+  // attrs: name, enabled(bool), exported(bool), stopWithTask(bool), [foregroundServiceType]
+  function makeService(svcName, exportedBool, fgType){
+    var attrCount=fgType?5:4;
+    var startSize=36+attrCount*20;
+    var s=new Uint8Array(startSize);
+    w32(s,0,0x00100102);
+    w32(s,4,startSize);
+    w32(s,8,0); w32(s,12,0xFFFFFFFF);
+    w32(s,16,0xFFFFFFFF);
+    w32(s,20,si('service'));
+    w16(s,24,0x14); w16(s,26,0x14);
+    w16(s,28,attrCount);
+    w16(s,30,0); w16(s,32,0); w16(s,34,0);
+
+    function setStr(i,attrName,val){
+      var o=36+i*20;
+      w32(s,o,ANS);
+      w32(s,o+4,si(attrName));
+      w32(s,o+8,si(val));
+      w32(s,o+12,0x03000008);
+      w32(s,o+16,si(val));
+    }
+    function setBool(i,attrName,val){
+      var o=36+i*20;
+      w32(s,o,ANS);
+      w32(s,o+4,si(attrName));
+      w32(s,o+8,0xFFFFFFFF);   // rawValue=-1 for bools
+      w32(s,o+12,0x12000008);  // type=TYPE_INT_BOOLEAN
+      w32(s,o+16,val?0xFFFFFFFF:0);
+    }
+    setStr( 0,'name',svcName);
+    setBool(1,'enabled',true);
+    setBool(2,'exported',exportedBool);
+    setBool(3,'stopWithTask',true);
+    if(fgType) setStr(4,'foregroundServiceType',fgType);
+
+    var e=new Uint8Array(24);
+    w32(e,0,0x00100101); w32(e,4,24);
+    w32(e,8,0); w32(e,12,0xFFFFFFFF);
+    w32(e,16,0xFFFFFFFF);
+    w32(e,20,si('service'));
+    return concat([s,e]);
+  }
+
+  // ── 6. Build injection block (skip if already present) ──
+  var oldStrings=strings.slice(0,strCount); // original strings only
+  function alreadyHas(s){ return oldStrings.indexOf(s)!==-1; }
+
+  var injParts=[];
+  if(!alreadyHas('android.permission.SYSTEM_ALERT_WINDOW'))
+    injParts.push(makePermission('android.permission.SYSTEM_ALERT_WINDOW'));
+  if(!alreadyHas('android.permission.FOREGROUND_SERVICE'))
+    injParts.push(makePermission('android.permission.FOREGROUND_SERVICE'));
+  if(!alreadyHas('android.permission.FOREGROUND_SERVICE_DATA_SYNC'))
+    injParts.push(makePermission('android.permission.FOREGROUND_SERVICE_DATA_SYNC'));
+  if(!alreadyHas('com.lgl.menu.Launcher'))
+    injParts.push(makeService('com.lgl.menu.Launcher',true,null));
+  if(!alreadyHas('com.lgl.menu.OverlayService'))
+    injParts.push(makeService('com.lgl.menu.OverlayService',false,'dataSync'));
+
+  var injection=concat(injParts);
+
+  // ── 7. Locate </application> in element data and splice ──
+  var elemStart=spOff+spSize;
+  var elemData=orig.subarray(elemStart);
+
+  // Find the END_ELEMENT whose name index maps to 'application'
+  var appNameIdx=oldStrings.indexOf('application');
+  var insertAt=elemData.length; // fallback = append at end
+  var p=0;
+  while(p<elemData.length-8){
+    var ct=r32(elemData,p);
+    var cs=r32(elemData,p+4);
+    if(cs<8||p+cs>elemData.length) break;
+    if(ct===0x00100101){ // END_ELEMENT
+      var nameIdx=r32s(elemData,p+20);
+      if(nameIdx===appNameIdx){ insertAt=p; } // keep updating to get the last one
+    }
+    p+=cs;
+  }
+
+  var before=elemData.subarray(0,insertAt);
+  var after =elemData.subarray(insertAt);
+  var newElem=concat([before,injection,after]);
+
+  // ── 8. Rebuild full file ──
+  var totalSize=8+newSpSize+newElem.length;
+  var header=new Uint8Array(8);
+  w32(header,0,0x00080003); // AXML magic
+  w32(header,4,totalSize);
+
+  return concat([header,newSP,newElem]);
+}
+
+// ── STEP 2: ANALYZE ───────────────────────────────────────
+async function analyze(){
+  document.getElementById('btn-analyze').disabled=true;
+  setStep('s2','active');
+  var al=document.getElementById('alog');
+  al.style.display='block';
+
+  try{
+    alog('Loading game APK...','info');
+    gZip=await JSZip.loadAsync(gBytes);
+    alog('Loading LGL APK...','info');
+    lZip=await JSZip.loadAsync(lBytes);
+
+    // Game manifest
+    alog('Parsing binary AXML manifest...','info');
+    var mfFile=gZip.file('AndroidManifest.xml');
+    if(!mfFile) throw new Error('No AndroidManifest.xml in game APK');
+    info.mfBytes=await mfFile.async('uint8array');
+    var parsed=parseAXML(info.mfBytes);
+    info.pkg=parsed.pkg;
+    info.mainActivity=parsed.mainActivity;
+    addCheck('ok','Game APK loaded',info.pkg||'package unknown');
+    if(info.mainActivity) addCheck('ok','Main activity found',info.mainActivity);
+    else addCheck('warn','Main activity not found','Will leave blank — set in AIDE');
+
+    // Dex count
+    var dexCount=0;
+    gZip.forEach(function(p){ if(/^classes\d*\.dex$/.test(p)) dexCount++; });
+    info.dexTarget=dexCount===0?'classes.dex':'classes'+(dexCount+1)+'.dex';
+    addCheck('ok','Game has '+dexCount+' dex file(s)','LGL dex → '+info.dexTarget);
+
+    // ABIs
+    var gAbis=[], lAbis=[];
+    gZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&gAbis.indexOf(m[1])===-1) gAbis.push(m[1]); });
+    lZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&lAbis.indexOf(m[1])===-1) lAbis.push(m[1]); });
+    info.gameAbis=gAbis; info.lglAbis=lAbis;
+    var abiMatch=gAbis.some(function(a){ return lAbis.indexOf(a)!==-1; });
+    if(abiMatch) addCheck('ok','ABI match','Game: '+(gAbis.join(', ')||'none')+' | LGL: '+(lAbis.join(', ')||'none'));
+    else addCheck('warn','ABI mismatch — check architectures','Game: '+(gAbis.join(', ')||'none')+' | LGL: '+(lAbis.join(', ')||'none'));
+
+    // LGL .so
+    var libName='';
+    lZip.forEach(function(p){ var m=p.match(/lib\/[^/]+\/(.+\.so)$/); if(m&&!libName) libName=m[1]; });
+    info.libName=libName;
+    if(libName) addCheck('ok','LGL native lib found',libName);
+    else addCheck('warn','No .so in LGL APK','Build NDK in AIDE first — patching will skip SO step');
+
+    // LGL dex
+    info.hasLglDex=!!lZip.file('classes.dex');
+    if(info.hasLglDex) addCheck('ok','LGL classes.dex found','will copy as '+info.dexTarget);
+    else addCheck('err','No classes.dex in LGL APK','Build Java in AIDE first');
+
+    alog('Analysis done.','ok');
+    setStep('s2','done');
+    document.getElementById('btn-patch').disabled=false;
+
+  }catch(e){
+    addCheck('err','Error: '+e.message,'');
+    alog('ERROR: '+e.message,'err');
+    setStep('s2','error');
+  }
+}
+
+// ── STEP 3: PATCH ─────────────────────────────────────────
+async function runPatch(){
+  setStep('s3','active');
+  var TOTAL=5, step=0;
+  function prog(){ setProgress(++step,TOTAL); }
+
+  try{
+    // 1. Clone game APK
+    plog('Cloning game APK...','info');
+    var out=new JSZip();
+    var files=[];
+    gZip.forEach(function(p,f){ if(!f.dir) files.push(p); });
+    for(var i=0;i<files.length;i++){
+      var d=await gZip.file(files[i]).async('uint8array');
+      out.file(files[i],d,{compression:'STORE'});
+    }
+    prog(); plog('Cloned '+files.length+' files','ok');
+
+    // 2. Patch AXML
+    plog('Patching AndroidManifest.xml (binary AXML)...','info');
+    try{
+      var patched=patchAXML(info.mfBytes);
+      out.file('AndroidManifest.xml',patched,{compression:'STORE'});
+      plog('  + SYSTEM_ALERT_WINDOW','ok');
+      plog('  + FOREGROUND_SERVICE','ok');
+      plog('  + FOREGROUND_SERVICE_DATA_SYNC','ok');
+      plog('  + com.lgl.menu.Launcher (service)','ok');
+      plog('  + com.lgl.menu.OverlayService (service)','ok');
+    }catch(e){
+      plog('AXML patch failed: '+e.message,'err');
+      plog('Add permissions manually in MT Manager','warn');
+    }
+    prog();
+
+    // 3. Inject LGL dex
+    plog('Injecting LGL DEX as '+info.dexTarget+'...','info');
+    if(info.hasLglDex){
+      var dex=await lZip.file('classes.dex').async('uint8array');
+      out.file(info.dexTarget,dex,{compression:'STORE'});
+      plog('  + '+info.dexTarget+' ('+sz(dex.length)+')','ok');
+    } else { plog('Skipped — no classes.dex in LGL APK','warn'); }
+    prog();
+
+    // 4. Copy .so files
+    plog('Copying native libs (.so)...','info');
+    var abis=info.gameAbis&&info.gameAbis.length?info.gameAbis:['arm64-v8a','armeabi-v7a'];
+    var soCount=0;
+    for(var i=0;i<abis.length;i++){
+      var abi=abis[i];
+      var paths=[];
+      lZip.forEach(function(p){ if(p.startsWith('lib/'+abi+'/')&&p.endsWith('.so')) paths.push(p); });
+      for(var j=0;j<paths.length;j++){
+        var sd=await lZip.file(paths[j]).async('uint8array');
+        out.file(paths[j],sd,{compression:'STORE'});
+        plog('  + '+paths[j]+' ('+sz(sd.length)+')','ok');
+        soCount++;
+      }
+    }
+    if(!soCount) plog('No .so files copied — build NDK in AIDE','warn');
+    prog();
+
+    // 5. Strip old signature + generate
+    plog('Stripping old signature...','info');
+    var toRm=[];
+    out.forEach(function(p){ if(p.startsWith('META-INF/')) toRm.push(p); });
+    for(var i=0;i<toRm.length;i++) out.remove(toRm[i]);
+    plog('Removed '+toRm.length+' META-INF files','ok');
+
+    plog('Generating APK...','info');
+    outBytes=await out.generateAsync({type:'uint8array',compression:'STORE'});
+    prog();
+    plog('Done! '+sz(outBytes.length),'ok');
+
+    var name=(info.pkg||'game').split('.').pop()+'_lgl_patched.apk';
+    document.getElementById('dl-name').textContent=name;
+    setStep('s3','done');
+    setStep('s4','active');
+
+  }catch(e){
+    plog('FATAL: '+e.message,'err');
+    setStep('s3','error');
+  }
+}
+
+// ── DOWNLOAD ───────────────────────────────────────────────
+function dlAPK(){
+  if(!outBytes) return;
+  var name=(info.pkg||'game').split('.').pop()+'_lgl_patched.apk';
+  var blob=new Blob([outBytes],{type:'application/vnd.android.package-archive'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download=name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); },5000);
+}
+</script>
+</body>
+</html>
