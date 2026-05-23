@@ -65,7 +65,7 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
   <div class="logo">⚙</div>
   <div>
     <h1>LGL Menu Patcher</h1>
-    <p>binary AXML patcher + DEX + SO injector // runs in browser</p>
+    <p>binary AXML manifest patcher // runs in browser</p>
   </div>
 </header>
 
@@ -85,7 +85,7 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
       <div class="dropzone" id="dz-l" onclick="document.getElementById('fi-l').click()">
         <input type="file" id="fi-l" accept=".apk" style="display:none"/>
         <div class="dz-icon">⚡</div>
-        <div class="dz-label" id="lb-l"><span>Click</span> or drop<br/>LGL Menu APK</div>
+        <div class="dz-label" id="lb-l"><span>Click</span> or drop<br/>LGL Menu APK (for .so lib)</div>
       </div>
     </div>
     <div class="btn-row">
@@ -98,7 +98,7 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
 <div class="step" id="s2">
   <div class="step-head">
     <div class="step-num">2</div>
-    <div><div class="step-title">Analysis</div><div class="step-sub">manifest, dex, architectures</div></div>
+    <div><div class="step-title">Analysis</div><div class="step-sub">manifest permissions &amp; components</div></div>
   </div>
   <div class="step-body">
     <ul class="checks" id="chk"></ul>
@@ -113,7 +113,7 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
 <div class="step" id="s3">
   <div class="step-head">
     <div class="step-num">3</div>
-    <div><div class="step-title">Patching</div><div class="step-sub">AXML · DEX · SO · strip signature</div></div>
+    <div><div class="step-title">Patching</div><div class="step-sub">patch AXML · backup original</div></div>
   </div>
   <div class="step-body">
     <div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
@@ -125,29 +125,34 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
 <div class="step" id="s4">
   <div class="step-head">
     <div class="step-num">4</div>
-    <div><div class="step-title">Download</div><div class="step-sub">sign with MT Manager then install</div></div>
+    <div><div class="step-title">Download</div><div class="step-sub">download patched manifest + backup</div></div>
   </div>
   <div class="step-body">
     <div class="download-box">
-      <h3>✓ Patched APK Ready</h3>
-      <p id="dl-name">patched.apk</p>
-      <button class="btn btn-primary" onclick="dlAPK()">⬇ Download</button>
+      <h3>✓ Patched Manifest Ready</h3>
+      <p id="dl-name">AndroidManifest_patched.xml</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="dlPatched()">⬇ Download Patched</button>
+        <button class="btn btn-primary" onclick="dlBackup()" style="background:var(--dim);color:#fff;">⬇ Download Backup</button>
+        <button class="btn btn-primary" onclick="dlLibs()" id="btn-libs" style="background:#7c3aed;color:#fff;">⬇ Download .so Libs</button>
+      </div>
     </div>
     <div class="sep"></div>
     <div class="note">
       // NEXT STEPS:<br/>
-      // 1. Open in MT Manager → Auto Sign<br/>
-      // 2. Install on device<br/>
-      // 3. In game smali onCreate — paste the line below:<br/>
+      // 1. Replace AndroidManifest.xml in game APK with patched file (MT Manager)<br/>
+      // &nbsp;&nbsp; Copy .so libs from lgl_libs.zip → game APK lib/ folders (MT Manager)<br/>
+      // 2. In game smali → find main activity → onCreate → add this line:<br/>
     </div>
-    <div style="background:#050709;border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent);word-break:break-all;" id="smali-line">
+    <div style="background:#050709;border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent);word-break:break-all;">
       invoke-static {p0}, Lcom/lgl/menu/Main;-&gt;Start(Landroid/content/Context;)V
     </div>
     <div class="btn-row" style="margin-top:10px;">
       <button class="btn btn-primary" id="btn-smali" onclick="copySmali()">⧉ Copy Smali Line</button>
     </div>
     <div class="note" style="margin-top:10px;">
-      // 4. Open game → grant overlay permission → ☰ appears
+      // 3. Sign APK with MT Manager → Auto Sign<br/>
+      // 4. Install → open game → grant overlay → ☰ appears
     </div>
   </div>
 </div>
@@ -156,32 +161,32 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
 
 <script>
 // ── state ──────────────────────────────────────────────────
-var gBytes=null, lBytes=null, gZip=null, lZip=null;
+var gBytes=null, gZip=null, lBytes=null, lZip=null;
 var info={};
 var outBytes=null;
 
 // ── file loading ───────────────────────────────────────────
-function setupDrop(dzId, fiId, tag){
+function setupDrop(dzId, fiId, onLoad){
   var dz=document.getElementById(dzId);
   var fi=document.getElementById(fiId);
-  fi.onchange=function(){ if(fi.files[0]) loadFile(fi.files[0],tag); };
+  fi.onchange=function(){ if(fi.files[0]) onLoad(fi.files[0]); };
   dz.ondragover=function(e){ e.preventDefault(); dz.classList.add('drag'); };
   dz.ondragleave=function(){ dz.classList.remove('drag'); };
-  dz.ondrop=function(e){ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0],tag); };
+  dz.ondrop=function(e){ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files[0]) onLoad(e.dataTransfer.files[0]); };
 }
-setupDrop('dz-g','fi-g','g');
-setupDrop('dz-l','fi-l','l');
 
-function loadFile(f,tag){
+function checkReady(){
+  if(gBytes&&lBytes) document.getElementById('btn-analyze').disabled=false;
+}
+
+function readFile(f, cb){
   var r=new FileReader();
-  r.onload=function(e){
-    var b=new Uint8Array(e.target.result);
-    if(tag==='g'){ gBytes=b; markDz('dz-g','lb-g',f); }
-    else          { lBytes=b; markDz('dz-l','lb-l',f); }
-    if(gBytes&&lBytes) document.getElementById('btn-analyze').disabled=false;
-  };
+  r.onload=function(e){ cb(new Uint8Array(e.target.result)); };
   r.readAsArrayBuffer(f);
 }
+
+setupDrop('dz-g','fi-g',function(f){ readFile(f,function(b){ gBytes=b; markDz('dz-g','lb-g',f); checkReady(); }); });
+setupDrop('dz-l','fi-l',function(f){ readFile(f,function(b){ lBytes=b; markDz('dz-l','lb-l',f); checkReady(); }); });
 function markDz(dzId,lbId,f){
   document.getElementById(dzId).classList.add('loaded');
   document.getElementById(lbId).innerHTML='<b>'+f.name+'</b><br/>'+sz(f.size);
@@ -251,7 +256,8 @@ function align4(n){ return Math.ceil(n/4)*4; }
 
 // ── AXML parser (extracts package + mainActivity only) ─────
 function parseAXML(b){
-  var res={pkg:'',mainActivity:''};
+  var res={pkg:'',mainActivity:'',strings:[]};
+  var strings=[];
   if(r32(b,0)!==0x00080003) return res;          // not AXML magic
   // String pool at offset 8
   var spOff=8;
@@ -262,6 +268,8 @@ function parseAXML(b){
   // string offsets table starts at spOff+28
   var strData   = b.subarray(spOff+strStart);
 
+  for(var _i=0;_i<strCount;_i++){ var _off=r32(b,spOff+28+_i*4); strings.push(readStr(strData,_off)); }
+  res.strings=strings;
   function getStr(idx){
     if(idx<0||idx>=strCount) return '';
     var off=r32(b,spOff+28+idx*4);
@@ -293,6 +301,7 @@ function parseAXML(b){
     }
     pos+=cs;
   }
+  res.strings=strings;
   return res;
 }
 
@@ -497,8 +506,6 @@ async function analyze(){
   try{
     alog('Loading game APK...','info');
     gZip=await JSZip.loadAsync(gBytes);
-    alog('Loading LGL APK...','info');
-    lZip=await JSZip.loadAsync(lBytes);
 
     // Game manifest
     alog('Parsing binary AXML manifest...','info');
@@ -510,34 +517,29 @@ async function analyze(){
     info.mainActivity=parsed.mainActivity;
     addCheck('ok','Game APK loaded',info.pkg||'package unknown');
     if(info.mainActivity) addCheck('ok','Main activity found',info.mainActivity);
-    else addCheck('warn','Main activity not found','Will leave blank — set in AIDE');
+    else addCheck('warn','Main activity not found','Smali inject oncreate manually');
 
-    // Dex count
-    var dexCount=0;
-    gZip.forEach(function(p){ if(/^classes\d*\.dex$/.test(p)) dexCount++; });
-    info.dexTarget=dexCount===0?'classes.dex':'classes'+(dexCount+1)+'.dex';
-    addCheck('ok','Game has '+dexCount+' dex file(s)','LGL dex → '+info.dexTarget);
+    // Check existing permissions
+    var hasAlert=parsed.strings.indexOf('android.permission.SYSTEM_ALERT_WINDOW')!==-1;
+    var hasFg=parsed.strings.indexOf('android.permission.FOREGROUND_SERVICE')!==-1;
+    var hasLauncher=parsed.strings.indexOf('com.lgl.menu.Launcher')!==-1;
+    if(hasAlert) addCheck('warn','SYSTEM_ALERT_WINDOW already present','will skip');
+    else addCheck('ok','SYSTEM_ALERT_WINDOW','will inject');
+    if(hasFg) addCheck('warn','FOREGROUND_SERVICE already present','will skip');
+    else addCheck('ok','FOREGROUND_SERVICE','will inject');
+    if(hasLauncher) addCheck('warn','com.lgl.menu.Launcher already present','will skip');
+    else addCheck('ok','com.lgl.menu.Launcher service','will inject');
 
-    // ABIs
-    var gAbis=[], lAbis=[];
-    gZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&gAbis.indexOf(m[1])===-1) gAbis.push(m[1]); });
-    lZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&lAbis.indexOf(m[1])===-1) lAbis.push(m[1]); });
-    info.gameAbis=gAbis; info.lglAbis=lAbis;
-    var abiMatch=gAbis.some(function(a){ return lAbis.indexOf(a)!==-1; });
-    if(abiMatch) addCheck('ok','ABI match','Game: '+(gAbis.join(', ')||'none')+' | LGL: '+(lAbis.join(', ')||'none'));
-    else addCheck('warn','ABI mismatch — check architectures','Game: '+(gAbis.join(', ')||'none')+' | LGL: '+(lAbis.join(', ')||'none'));
-
-    // LGL .so
+    // LGL APK .so check
+    alog('Loading LGL APK...','info');
+    lZip=await JSZip.loadAsync(lBytes);
     var libName='';
     lZip.forEach(function(p){ var m=p.match(/lib\/[^/]+\/(.+\.so)$/); if(m&&!libName) libName=m[1]; });
     info.libName=libName;
-    if(libName) addCheck('ok','LGL native lib found',libName);
-    else addCheck('warn','No .so in LGL APK','Build NDK in AIDE first — patching will skip SO step');
-
-    // LGL dex
-    info.hasLglDex=!!lZip.file('classes.dex');
-    if(info.hasLglDex) addCheck('ok','LGL classes.dex found','will copy as '+info.dexTarget);
-    else addCheck('err','No classes.dex in LGL APK','Build Java in AIDE first');
+    info.lglAbis=[];
+    lZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&info.lglAbis.indexOf(m[1])===-1) info.lglAbis.push(m[1]); });
+    if(libName) addCheck('ok','LGL .so found: '+libName,info.lglAbis.join(', ')||'no ABI folders');
+    else addCheck('warn','No .so in LGL APK','Build NDK in AIDE first — lib step will be skipped');
 
     alog('Analysis done.','ok');
     setStep('s2','done');
@@ -553,75 +555,64 @@ async function analyze(){
 // ── STEP 3: PATCH ─────────────────────────────────────────
 async function runPatch(){
   setStep('s3','active');
-  var TOTAL=5, step=0;
+  var TOTAL=4, step=0;
   function prog(){ setProgress(++step,TOTAL); }
 
   try{
-    // 1. Clone game APK
-    plog('Cloning game APK...','info');
-    var out=new JSZip();
-    var files=[];
-    gZip.forEach(function(p,f){ if(!f.dir) files.push(p); });
-    for(var i=0;i<files.length;i++){
-      var d=await gZip.file(files[i]).async('uint8array');
-      out.file(files[i],d,{compression:'STORE'});
-    }
-    prog(); plog('Cloned '+files.length+' files','ok');
+    // 1. Save backup of original manifest
+    plog('Saving original manifest backup...','info');
+    outBackup=info.mfBytes;
+    prog(); plog('Backup ready (AndroidManifest_original.xml)','ok');
 
     // 2. Patch AXML
     plog('Patching AndroidManifest.xml (binary AXML)...','info');
     try{
-      var patched=patchAXML(info.mfBytes);
-      out.file('AndroidManifest.xml',patched,{compression:'STORE'});
+      outBytes=patchAXML(info.mfBytes);
       plog('  + SYSTEM_ALERT_WINDOW','ok');
       plog('  + FOREGROUND_SERVICE','ok');
-      plog('  + com.lgl.menu.Launcher (service)','ok');
+      plog('  + com.lgl.menu.Launcher service','ok');
     }catch(e){
       plog('AXML patch failed: '+e.message,'err');
-      plog('Add permissions manually in MT Manager','warn');
+      setStep('s3','error');
+      return;
     }
     prog();
 
-    // 3. Inject LGL dex
-    plog('Injecting LGL DEX as '+info.dexTarget+'...','info');
-    if(info.hasLglDex){
-      var dex=await lZip.file('classes.dex').async('uint8array');
-      out.file(info.dexTarget,dex,{compression:'STORE'});
-      plog('  + '+info.dexTarget+' ('+sz(dex.length)+')','ok');
-    } else { plog('Skipped — no classes.dex in LGL APK','warn'); }
-    prog();
-
-    // 4. Copy .so files
-    plog('Copying native libs (.so)...','info');
-    var abis=info.gameAbis&&info.gameAbis.length?info.gameAbis:['arm64-v8a','armeabi-v7a'];
-    var soCount=0;
-    for(var i=0;i<abis.length;i++){
-      var abi=abis[i];
-      var paths=[];
-      lZip.forEach(function(p){ if(p.startsWith('lib/'+abi+'/')&&p.endsWith('.so')) paths.push(p); });
-      for(var j=0;j<paths.length;j++){
-        var sd=await lZip.file(paths[j]).async('uint8array');
-        out.file(paths[j],sd,{compression:'STORE'});
-        plog('  + '+paths[j]+' ('+sz(sd.length)+')','ok');
-        soCount++;
+    // 3. Copy .so files into output zip (game APK clone just for libs)
+    plog('Preparing .so lib files...','info');
+    if(info.libName && lZip){
+      var gAbis=[];
+      gZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&gAbis.indexOf(m[1])===-1) gAbis.push(m[1]); });
+      var targetAbis=gAbis.length?gAbis:info.lglAbis;
+      var soFiles=[];
+      for(var i=0;i<targetAbis.length;i++){
+        var abi=targetAbis[i];
+        var lPath='lib/'+abi+'/'+info.libName;
+        if(lZip.file(lPath)){
+          var sd=await lZip.file(lPath).async('uint8array');
+          soFiles.push({name:'lib/'+abi+'_'+info.libName, data:sd});
+          plog('  + '+lPath+' ('+sz(sd.length)+')','ok');
+        }
       }
+      if(soFiles.length){
+        // Bundle as a zip for download
+        var libZip=new JSZip();
+        for(var i=0;i<soFiles.length;i++) libZip.file(soFiles[i].name, soFiles[i].data);
+        outLibZip=await libZip.generateAsync({type:'uint8array',compression:'STORE'});
+        plog('  libs ready for download','ok');
+      } else {
+        plog('No matching .so found for game ABIs','warn');
+        outLibZip=null;
+      }
+    } else {
+      plog('Skipped — no .so in LGL APK','warn');
+      outLibZip=null;
     }
-    if(!soCount) plog('No .so files copied — build NDK in AIDE','warn');
     prog();
 
-    // 5. Strip old signature + generate
-    plog('Stripping old signature...','info');
-    var toRm=[];
-    out.forEach(function(p){ if(p.startsWith('META-INF/')) toRm.push(p); });
-    for(var i=0;i<toRm.length;i++) out.remove(toRm[i]);
-    plog('Removed '+toRm.length+' META-INF files','ok');
+    plog('All done.','ok');
 
-    plog('Generating APK...','info');
-    outBytes=await out.generateAsync({type:'uint8array',compression:'STORE'});
-    prog();
-    plog('Done! '+sz(outBytes.length),'ok');
-
-    var name=(info.pkg||'game').split('.').pop()+'_lgl_patched.apk';
+    var name='AndroidManifest_patched.xml';
     document.getElementById('dl-name').textContent=name;
     setStep('s3','done');
     setStep('s4','active');
@@ -632,7 +623,30 @@ async function runPatch(){
   }
 }
 
-// ── COPY SMALI ────────────────────────────────────────────
+// ── DOWNLOAD ───────────────────────────────────────────────
+var outBackup=null, outLibZip=null;
+
+function dlPatched(){
+  if(!outBytes) return;
+  dlBlob(outBytes,'AndroidManifest_patched.xml','application/octet-stream');
+}
+function dlBackup(){
+  if(!outBackup) return;
+  dlBlob(outBackup,'AndroidManifest_original.xml','application/octet-stream');
+}
+function dlBlob(bytes,name,type){
+  var blob=new Blob([bytes],{type:type});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download=name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); },5000);
+}
+function dlLibs(){
+  if(!outLibZip){ alert('No .so files found — build NDK in AIDE first'); return; }
+  dlBlob(outLibZip,'lgl_libs.zip','application/zip');
+}
 function copySmali(){
   var line='invoke-static {p0}, Lcom/lgl/menu/Main;->Start(Landroid/content/Context;)V';
   var btn=document.getElementById('btn-smali');
@@ -642,30 +656,13 @@ function copySmali(){
     btn.style.color='#000';
     setTimeout(function(){ btn.textContent='⧉ Copy Smali Line'; btn.style.background=''; btn.style.color=''; },2000);
   }).catch(function(){
-    // fallback
     var ta=document.createElement('textarea');
-    ta.value=line;
-    ta.style.position='fixed';ta.style.opacity='0';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
+    ta.value=line; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
     document.body.removeChild(ta);
     btn.textContent='✓ Copied!';
     setTimeout(function(){ btn.textContent='⧉ Copy Smali Line'; },2000);
   });
-}
-
-// ── DOWNLOAD ───────────────────────────────────────────────
-function dlAPK(){
-  if(!outBytes) return;
-  var name=(info.pkg||'game').split('.').pop()+'_lgl_patched.apk';
-  var blob=new Blob([outBytes],{type:'application/vnd.android.package-archive'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url; a.download=name;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); },5000);
 }
 </script>
 </body>
