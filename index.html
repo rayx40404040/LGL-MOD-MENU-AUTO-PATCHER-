@@ -138,8 +138,15 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
       // NEXT STEPS:<br/>
       // 1. Open in MT Manager → Auto Sign<br/>
       // 2. Install on device<br/>
-      // 3. Smali inject in game onCreate (you handle this):<br/>
-      // &nbsp;&nbsp;<span class="hl">invoke-static {p0}, Lcom/lgl/menu/Main;->Start(Landroid/content/Context;)V</span><br/>
+      // 3. In game smali onCreate — paste the line below:<br/>
+    </div>
+    <div style="background:#050709;border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent);word-break:break-all;" id="smali-line">
+      invoke-static {p0}, Lcom/lgl/menu/Main;-&gt;Start(Landroid/content/Context;)V
+    </div>
+    <div class="btn-row" style="margin-top:10px;">
+      <button class="btn btn-primary" id="btn-smali" onclick="copySmali()">⧉ Copy Smali Line</button>
+    </div>
+    <div class="note" style="margin-top:10px;">
       // 4. Open game → grant overlay permission → ☰ appears
     </div>
   </div>
@@ -316,14 +323,11 @@ function patchAXML(orig){
   var needed=[
     'android.permission.SYSTEM_ALERT_WINDOW',
     'android.permission.FOREGROUND_SERVICE',
-    'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
     'uses-permission',
     'com.lgl.menu.Launcher',
-    'com.lgl.menu.OverlayService',
     'service',
     'http://schemas.android.com/apk/res/android',
-    'name','enabled','exported','stopWithTask','foregroundServiceType',
-    'dataSync','true','false'
+    'name','enabled','exported','stopWithTask','true','false'
   ];
   for(var i=0;i<needed.length;i++){
     if(strings.indexOf(needed[i])===-1) strings.push(needed[i]);
@@ -446,12 +450,8 @@ function patchAXML(orig){
     injParts.push(makePermission('android.permission.SYSTEM_ALERT_WINDOW'));
   if(!alreadyHas('android.permission.FOREGROUND_SERVICE'))
     injParts.push(makePermission('android.permission.FOREGROUND_SERVICE'));
-  if(!alreadyHas('android.permission.FOREGROUND_SERVICE_DATA_SYNC'))
-    injParts.push(makePermission('android.permission.FOREGROUND_SERVICE_DATA_SYNC'));
   if(!alreadyHas('com.lgl.menu.Launcher'))
     injParts.push(makeService('com.lgl.menu.Launcher',true,null));
-  if(!alreadyHas('com.lgl.menu.OverlayService'))
-    injParts.push(makeService('com.lgl.menu.OverlayService',false,'dataSync'));
 
   var injection=concat(injParts);
 
@@ -575,9 +575,7 @@ async function runPatch(){
       out.file('AndroidManifest.xml',patched,{compression:'STORE'});
       plog('  + SYSTEM_ALERT_WINDOW','ok');
       plog('  + FOREGROUND_SERVICE','ok');
-      plog('  + FOREGROUND_SERVICE_DATA_SYNC','ok');
       plog('  + com.lgl.menu.Launcher (service)','ok');
-      plog('  + com.lgl.menu.OverlayService (service)','ok');
     }catch(e){
       plog('AXML patch failed: '+e.message,'err');
       plog('Add permissions manually in MT Manager','warn');
@@ -632,6 +630,29 @@ async function runPatch(){
     plog('FATAL: '+e.message,'err');
     setStep('s3','error');
   }
+}
+
+// ── COPY SMALI ────────────────────────────────────────────
+function copySmali(){
+  var line='invoke-static {p0}, Lcom/lgl/menu/Main;->Start(Landroid/content/Context;)V';
+  var btn=document.getElementById('btn-smali');
+  navigator.clipboard.writeText(line).then(function(){
+    btn.textContent='✓ Copied!';
+    btn.style.background='var(--green)';
+    btn.style.color='#000';
+    setTimeout(function(){ btn.textContent='⧉ Copy Smali Line'; btn.style.background=''; btn.style.color=''; },2000);
+  }).catch(function(){
+    // fallback
+    var ta=document.createElement('textarea');
+    ta.value=line;
+    ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent='✓ Copied!';
+    setTimeout(function(){ btn.textContent='⧉ Copy Smali Line'; },2000);
+  });
 }
 
 // ── DOWNLOAD ───────────────────────────────────────────────
