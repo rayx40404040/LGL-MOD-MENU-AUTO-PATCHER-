@@ -73,14 +73,14 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
 <div class="step active" id="s1">
   <div class="step-head">
     <div class="step-num">1</div>
-    <div><div class="step-title">Load APKs</div><div class="step-sub">game APK + your built LGL Menu APK</div></div>
+    <div><div class="step-title">Load APKs</div><div class="step-sub">AndroidManifest.xml (from game) + LGL Menu APK (for .so)</div></div>
   </div>
   <div class="step-body">
     <div class="droprow">
       <div class="dropzone" id="dz-g" onclick="document.getElementById('fi-g').click()">
-        <input type="file" id="fi-g" accept=".apk" style="display:none"/>
-        <div class="dz-icon">🎮</div>
-        <div class="dz-label" id="lb-g"><span>Click</span> or drop<br/>Game APK</div>
+        <input type="file" id="fi-g" accept=".xml,*/*" style="display:none"/>
+        <div class="dz-icon">📄</div>
+        <div class="dz-label" id="lb-g"><span>Click</span> or drop<br/>AndroidManifest.xml<br/><span style="font-size:10px;color:var(--dim)">(extract from game APK with MT Manager first)</span></div>
       </div>
       <div class="dropzone" id="dz-l" onclick="document.getElementById('fi-l').click()">
         <input type="file" id="fi-l" accept=".apk" style="display:none"/>
@@ -140,8 +140,8 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
     <div class="sep"></div>
     <div class="note">
       // NEXT STEPS:<br/>
-      // 1. Replace AndroidManifest.xml in game APK with patched file (MT Manager)<br/>
-      // &nbsp;&nbsp; Copy .so libs from lgl_libs.zip → game APK lib/ folders (MT Manager)<br/>
+      // 1. In MT Manager: open game APK → replace AndroidManifest.xml with patched file<br/>
+      // &nbsp;&nbsp;&nbsp;&nbsp; Copy .so from lgl_libs.zip → game APK lib/arm64-v8a/ etc<br/>
       // 2. In game smali → find main activity → onCreate → add this line:<br/>
     </div>
     <div style="background:#050709;border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-top:8px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent);word-break:break-all;">
@@ -161,7 +161,7 @@ header p{font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace
 
 <script>
 // ── state ──────────────────────────────────────────────────
-var gBytes=null, gZip=null, lBytes=null, lZip=null;
+var gFile=null, gZip=null, lFile=null, lZip=null;
 var info={};
 var outBytes=null;
 
@@ -176,7 +176,7 @@ function setupDrop(dzId, fiId, onLoad){
 }
 
 function checkReady(){
-  if(gBytes&&lBytes) document.getElementById('btn-analyze').disabled=false;
+  if(gFile&&lFile) document.getElementById('btn-analyze').disabled=false;
 }
 
 function readFile(f, cb){
@@ -185,8 +185,12 @@ function readFile(f, cb){
   r.readAsArrayBuffer(f);
 }
 
-setupDrop('dz-g','fi-g',function(f){ readFile(f,function(b){ gBytes=b; markDz('dz-g','lb-g',f); checkReady(); }); });
-setupDrop('dz-l','fi-l',function(f){ readFile(f,function(b){ lBytes=b; markDz('dz-l','lb-l',f); checkReady(); }); });
+setupDrop('dz-g','fi-g',function(f){
+  var r=new FileReader();
+  r.onload=function(e){ gFile=new Uint8Array(e.target.result); markDz('dz-g','lb-g',f); checkReady(); };
+  r.readAsArrayBuffer(f);
+});
+setupDrop('dz-l','fi-l',function(f){ lFile=f; markDz('dz-l','lb-l',f); checkReady(); });
 function markDz(dzId,lbId,f){
   document.getElementById(dzId).classList.add('loaded');
   document.getElementById(lbId).innerHTML='<b>'+f.name+'</b><br/>'+sz(f.size);
@@ -504,18 +508,13 @@ async function analyze(){
   al.style.display='block';
 
   try{
-    alog('Loading game APK...','info');
-    gZip=await JSZip.loadAsync(gBytes);
-
-    // Game manifest
-    alog('Parsing binary AXML manifest...','info');
-    var mfFile=gZip.file('AndroidManifest.xml');
-    if(!mfFile) throw new Error('No AndroidManifest.xml in game APK');
-    info.mfBytes=await mfFile.async('uint8array');
+    alog('Reading AndroidManifest.xml...','info');
+    if(!gFile||gFile.length<8) throw new Error('Invalid AndroidManifest.xml');
+    info.mfBytes=gFile;
     var parsed=parseAXML(info.mfBytes);
     info.pkg=parsed.pkg;
     info.mainActivity=parsed.mainActivity;
-    addCheck('ok','Game APK loaded',info.pkg||'package unknown');
+    addCheck('ok','Manifest loaded — package: '+(info.pkg||'unknown'),'');
     if(info.mainActivity) addCheck('ok','Main activity found',info.mainActivity);
     else addCheck('warn','Main activity not found','Smali inject oncreate manually');
 
@@ -532,12 +531,13 @@ async function analyze(){
 
     // LGL APK .so check
     alog('Loading LGL APK...','info');
-    lZip=await JSZip.loadAsync(lBytes);
+    lZip=await JSZip.loadAsync(lFile);
     var libName='';
     lZip.forEach(function(p){ var m=p.match(/lib\/[^/]+\/(.+\.so)$/); if(m&&!libName) libName=m[1]; });
     info.libName=libName;
     info.lglAbis=[];
     lZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&info.lglAbis.indexOf(m[1])===-1) info.lglAbis.push(m[1]); });
+    info.gameAbis=info.lglAbis; // no game APK — use LGL abis as target
     if(libName) addCheck('ok','LGL .so found: '+libName,info.lglAbis.join(', ')||'no ABI folders');
     else addCheck('warn','No .so in LGL APK','Build NDK in AIDE first — lib step will be skipped');
 
@@ -581,16 +581,14 @@ async function runPatch(){
     // 3. Copy .so files into output zip (game APK clone just for libs)
     plog('Preparing .so lib files...','info');
     if(info.libName && lZip){
-      var gAbis=[];
-      gZip.forEach(function(p){ var m=p.match(/^lib\/(arm64-v8a|armeabi-v7a|x86_64|x86)\//); if(m&&gAbis.indexOf(m[1])===-1) gAbis.push(m[1]); });
-      var targetAbis=gAbis.length?gAbis:info.lglAbis;
+      var targetAbis=info.lglAbis;
       var soFiles=[];
       for(var i=0;i<targetAbis.length;i++){
         var abi=targetAbis[i];
         var lPath='lib/'+abi+'/'+info.libName;
         if(lZip.file(lPath)){
           var sd=await lZip.file(lPath).async('uint8array');
-          soFiles.push({name:'lib/'+abi+'_'+info.libName, data:sd});
+          soFiles.push({name:'lib/'+abi+'/'+info.libName, data:sd});
           plog('  + '+lPath+' ('+sz(sd.length)+')','ok');
         }
       }
